@@ -137,6 +137,10 @@ int tree_from_index(ObjectID *id_out) {
     }
     char *path = strdup(e->path);
     char *token = strtok(path, "/");
+    TreeEntry entry;
+    entry.mode = e->mode;
+    strcpy(entry.name, e->path);
+    strcpy(entry.hash, e->hash);
     (void)id_out;
     return -1;
 }
