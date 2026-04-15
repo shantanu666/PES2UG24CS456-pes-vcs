@@ -196,6 +196,14 @@ int head_update(const ObjectID *new_commit) {
 int commit_create(const char *message, ObjectID *commit_id_out) {
     // TODO: Implement commit creation
     // (See Lab Appendix for logical steps)
+    tree_from_index(index, tree_hash);
+    head_read(parent_hash);
+    char *author = pes_author();
+    sprintf(buffer,
+    "tree %s\nparent %s\nauthor %s\n\n%s\n",
+    tree_hash, parent_hash, author, message);
+    object_write("commit", buffer, strlen(buffer), commit_hash);
+    head_update(commit_hash);
     (void)message; (void)commit_id_out;
     return -1;
 }
