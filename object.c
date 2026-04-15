@@ -101,6 +101,13 @@ int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out
     int header_len = sprintf(buffer, "%s %zu", type, size) + 1;
     memcpy(buffer + header_len, data, size);
     size_t final_size = header_len + size;
+    unsigned char hash[SHA256_DIGEST_LENGTH];
+    SHA256((unsigned char *)buffer, final_size, hash);
+
+    char hex[65];
+    for (int i = 0; i < 32; i++)
+        sprintf(hex + i*2, "%02x", hash[i]);
+    hex[64] = '\0';
     (void)type; (void)data; (void)len; (void)id_out;
     return -1;
 }
