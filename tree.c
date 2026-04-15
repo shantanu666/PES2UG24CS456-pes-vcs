@@ -142,6 +142,7 @@ int tree_from_index(ObjectID *id_out) {
     strcpy(entry.name, e->path);
     strcpy(entry.hash, e->hash);
     sprintf(buffer, "%o blob %s %s\n", entry.mode, entry.hash, entry.name);
+    object_write("tree", buffer, strlen(buffer), tree_hash);
     (void)id_out;
     return -1;
 }
