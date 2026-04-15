@@ -162,6 +162,8 @@ int index_load(Index *index) {
 int index_save(const Index *index) {
     // TODO: Implement atomic index saving
     // (See Lab Appendix for logical steps)
+    FILE *fp = fopen(".pes/index.tmp", "w");
+    qsort(index->entries, index->count, sizeof(IndexEntry), compare);
     (void)index;
     return -1;
 }
@@ -178,6 +180,7 @@ int index_save(const Index *index) {
 int index_add(Index *index, const char *path) {
     // TODO: Implement file staging
     // (See Lab Appendix for logical steps)
+    object_write("blob", file_data, size, hash);
     (void)index; (void)path;
     return -1;
 }
