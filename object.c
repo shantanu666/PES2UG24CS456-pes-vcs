@@ -113,6 +113,12 @@ int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out
     mkdir(".pes", 0755);
     mkdir(".pes/objects", 0755);
     mkdir(dir, 0755);
+    char path[100];
+    sprintf(path, "%s/%s", dir, hex + 2);
+
+    FILE *fp = fopen(path, "wb");
+    fwrite(buffer, 1, final_size, fp);
+    fclose(fp);
     (void)type; (void)data; (void)len; (void)id_out;
     return -1;
 }
