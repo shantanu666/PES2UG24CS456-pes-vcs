@@ -142,6 +142,9 @@ int index_load(Index *index) {
         index->count = 0;
         return;
     }
+    fscanf(fp, "%o %s %ld %ld %s",
+       &entry.mode, entry.hash, &entry.mtime,
+       &entry.size, entry.path);
     (void)index;
     return -1;
 }
