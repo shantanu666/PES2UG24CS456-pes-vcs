@@ -147,6 +147,17 @@ int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out
 // Returns 0 on success, -1 on error (file not found, corrupt, etc.).
 int object_read(const ObjectID *id, ObjectType *type_out, void **data_out, size_t *len_out) {
     // TODO: Implement
+    FILE *fp = fopen(path, "rb");
+    fseek(fp, 0, SEEK_END);
+    long len = ftell(fp);
+    rewind(fp);
+
+    char *buf = malloc(len);
+    fread(buf, 1, len, fp);
+    fclose(fp);
+
+    // skip header
+    char *data_start = strchr(buf, '\0') + 1;
     (void)id; (void)type_out; (void)data_out; (void)len_out;
     return -1;
 }
