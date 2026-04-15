@@ -95,6 +95,9 @@ int object_exists(const ObjectID *id) {
 // Returns 0 on success, -1 on error.
 int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out) {
     // TODO: Implement
+    // Step 1: prepare buffer for header + data
+    size_t total_size = size + 100; // enough for header
+    char *buffer = malloc(total_size);
     (void)type; (void)data; (void)len; (void)id_out;
     return -1;
 }
