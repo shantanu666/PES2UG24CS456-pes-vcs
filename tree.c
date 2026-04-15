@@ -135,6 +135,8 @@ int tree_from_index(ObjectID *id_out) {
     for (int i = 0; i < index->count; i++) {
         IndexEntry *e = &index->entries[i];
     }
+    char *path = strdup(e->path);
+    char *token = strtok(path, "/");
     (void)id_out;
     return -1;
 }
