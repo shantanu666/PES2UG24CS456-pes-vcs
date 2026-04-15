@@ -98,6 +98,9 @@ int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out
     // Step 1: prepare buffer for header + data
     size_t total_size = size + 100; // enough for header
     char *buffer = malloc(total_size);
+    int header_len = sprintf(buffer, "%s %zu", type, size) + 1;
+    memcpy(buffer + header_len, data, size);
+    size_t final_size = header_len + size;
     (void)type; (void)data; (void)len; (void)id_out;
     return -1;
 }
