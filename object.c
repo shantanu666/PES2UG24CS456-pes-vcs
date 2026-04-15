@@ -108,6 +108,11 @@ int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out
     for (int i = 0; i < 32; i++)
         sprintf(hex + i*2, "%02x", hash[i]);
     hex[64] = '\0';
+    char dir[50];
+    sprintf(dir, ".pes/objects/%.2s", hex);
+    mkdir(".pes", 0755);
+    mkdir(".pes/objects", 0755);
+    mkdir(dir, 0755);
     (void)type; (void)data; (void)len; (void)id_out;
     return -1;
 }
