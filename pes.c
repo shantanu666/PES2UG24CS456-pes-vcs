@@ -10,6 +10,16 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#ifdef _WIN32
+#include <direct.h>
+#include <io.h>
+#define mkdir(path, mode) _mkdir(path)
+#define fsync(fd) _commit(fd)
+#endif
+
+// Forward declarations
+int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out);
+uint32_t get_file_mode(const char *path);
 
 // ─── PROVIDED: Command Implementations ──────────────────────────────────────
 
@@ -41,17 +51,27 @@ void cmd_add(int argc, char *argv[]) {
         return;
     }
 
-    Index index;
-    if (index_load(&index) != 0) {
+    Index *index = calloc(1, sizeof(Index));
+    if (!index) {
+        fprintf(stderr, "error: out of memory\n");
+        return;
+    }
+    if (index_load(index) != 0) {
         fprintf(stderr, "error: failed to load index\n");
+        free(index);
         return;
     }
 
     for (int i = 2; i < argc; i++) {
-        if (index_add(&index, argv[i]) != 0) {
+        if (index_add(index, argv[i]) != 0) {
             fprintf(stderr, "error: failed to add '%s'\n", argv[i]);
         }
     }
+
+    if (index_save(index) != 0) {
+        fprintf(stderr, "error: failed to save index\n");
+    }
+    free(index);
 }
 
 // Usage: pes status

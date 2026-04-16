@@ -10,11 +10,16 @@
 //   "100644 hello.txt\0" followed by 32 raw bytes of SHA-256
 
 #include "tree.h"
+#include "index.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <dirent.h>
 #include <sys/stat.h>
+#include <unistd.h>
+
+// Forward declaration
+int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out);
 
 // ─── Mode Constants ─────────────────────────────────────────────────────────
 
@@ -27,7 +32,7 @@
 // Determine the object mode for a filesystem path.
 uint32_t get_file_mode(const char *path) {
     struct stat st;
-    if (lstat(path, &st) != 0) return 0;
+    if (stat(path, &st) != 0) return 0;
 
     if (S_ISDIR(st.st_mode))  return MODE_DIR;
     if (st.st_mode & S_IXUSR) return MODE_EXEC;
@@ -116,6 +121,134 @@ int tree_serialize(const Tree *tree, void **data_out, size_t *len_out) {
 
 // ─── TODO: Implement these ──────────────────────────────────────────────────
 
+// Helper function to build a tree for a given directory prefix
+static int build_tree_for_prefix(const IndexEntry *entries, int count, const char *prefix, ObjectID *id_out) {
+    Tree tree = {0};
+    
+    // Find all entries that belong to this prefix
+    for (int i = 0; i < count; i++) {
+        const char *path = entries[i].path;
+        
+        // Check if this entry belongs to the current prefix
+        if (prefix[0] == '\0') {
+            // Root level: entries without '/' or with '/' but we handle subdirs separately
+            const char *slash = strchr(path, '/');
+            if (slash == NULL) {
+                // File at root
+                tree.entries[tree.count].mode = entries[i].mode;
+                tree.entries[tree.count].hash = entries[i].hash;
+                strcpy(tree.entries[tree.count].name, path);
+                tree.count++;
+            } else {
+                // Directory at root, handle below
+            }
+        } else {
+            // Subdirectory level
+            if (strncmp(path, prefix, strlen(prefix)) == 0) {
+                const char *remainder = path + strlen(prefix);
+                const char *slash = strchr(remainder, '/');
+                if (slash == NULL) {
+                    // File in this directory
+                    tree.entries[tree.count].mode = entries[i].mode;
+                    tree.entries[tree.count].hash = entries[i].hash;
+                    strcpy(tree.entries[tree.count].name, remainder);
+                    tree.count++;
+                } else {
+                    // Subdirectory, handle below
+                }
+            }
+        }
+    }
+    
+    // Now handle subdirectories
+    int start = 0;
+    while (start < count) {
+        const char *path = entries[start].path;
+        const char *slash;
+        
+        if (prefix[0] == '\0') {
+            slash = strchr(path, '/');
+            if (slash == NULL) {
+                start++;
+                continue; // Already handled files
+            }
+        } else {
+            if (strncmp(path, prefix, strlen(prefix)) != 0) {
+                start++;
+                continue;
+            }
+            const char *remainder = path + strlen(prefix);
+            slash = strchr(remainder, '/');
+            if (slash == NULL) {
+                start++;
+                continue; // Already handled files
+            }
+        }
+        
+        // Find the directory name
+        char dir_name[256];
+        if (prefix[0] == '\0') {
+            size_t len = slash - path;
+            memcpy(dir_name, path, len);
+            dir_name[len] = '\0';
+        } else {
+            const char *remainder = path + strlen(prefix);
+            size_t len = slash - remainder;
+            memcpy(dir_name, remainder, len);
+            dir_name[len] = '\0';
+        }
+        
+        // Build the full prefix for this subdirectory
+        char sub_prefix[512];
+        if (prefix[0] == '\0') {
+            strcpy(sub_prefix, dir_name);
+            strcat(sub_prefix, "/");
+        } else {
+            strcpy(sub_prefix, prefix);
+            strcat(sub_prefix, dir_name);
+            strcat(sub_prefix, "/");
+        }
+        
+        // Recursively build the subtree
+        ObjectID sub_tree_id;
+        if (build_tree_for_prefix(entries, count, sub_prefix, &sub_tree_id) != 0) {
+            return -1;
+        }
+        
+        // Add the subtree to current tree
+        tree.entries[tree.count].mode = MODE_DIR;
+        tree.entries[tree.count].hash = sub_tree_id;
+        strcpy(tree.entries[tree.count].name, dir_name);
+        tree.count++;
+        
+        // Skip all entries in this subdirectory
+        while (start < count) {
+            const char *p = entries[start].path;
+            if (prefix[0] == '\0') {
+                if (strncmp(p, dir_name, strlen(dir_name)) != 0 || p[strlen(dir_name)] != '/') {
+                    break;
+                }
+            } else {
+                if (strncmp(p, sub_prefix, strlen(sub_prefix)) != 0) {
+                    break;
+                }
+            }
+            start++;
+        }
+    }
+    
+    // Serialize and write the tree
+    void *data;
+    size_t len;
+    if (tree_serialize(&tree, &data, &len) != 0) {
+        return -1;
+    }
+    
+    int rc = object_write(OBJ_TREE, data, len, id_out);
+    free(data);
+    return rc;
+}
+
 // Build a tree hierarchy from the current index and write all tree
 // objects to the object store.
 //
@@ -130,19 +263,10 @@ int tree_serialize(const Tree *tree, void **data_out, size_t *len_out) {
 //
 // Returns 0 on success, -1 on error.
 int tree_from_index(ObjectID *id_out) {
-    // TODO: Implement recursive tree building
-    // (See Lab Appendix for logical steps)
-    for (int i = 0; i < index->count; i++) {
-        IndexEntry *e = &index->entries[i];
+    Index index;
+    if (index_load(&index) != 0) {
+        return -1;
     }
-    char *path = strdup(e->path);
-    char *token = strtok(path, "/");
-    TreeEntry entry;
-    entry.mode = e->mode;
-    strcpy(entry.name, e->path);
-    strcpy(entry.hash, e->hash);
-    sprintf(buffer, "%o blob %s %s\n", entry.mode, entry.hash, entry.name);
-    object_write("tree", buffer, strlen(buffer), tree_hash);
-    (void)id_out;
-    return -1;
+    
+    return build_tree_for_prefix(index.entries, index.count, "", id_out);
 }

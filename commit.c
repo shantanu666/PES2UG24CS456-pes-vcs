@@ -24,6 +24,10 @@
 #include <time.h>
 #include <unistd.h>
 #include <fcntl.h>
+#ifdef _WIN32
+#include <io.h>
+#define fsync(fd) _commit(fd)
+#endif
 
 // Forward declarations (implemented in object.c)
 int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out);
@@ -173,7 +177,7 @@ int head_update(const ObjectID *new_commit) {
     fprintf(f, "%s\n", hex);
     
     fflush(f);
-    fsync(fileno(f));
+    // fsync(fileno(f)); // Skip for Windows
     fclose(f);
     
     return rename(tmp_path, target_path);
@@ -194,16 +198,45 @@ int head_update(const ObjectID *new_commit) {
 //
 // Returns 0 on success, -1 on error.
 int commit_create(const char *message, ObjectID *commit_id_out) {
-    // TODO: Implement commit creation
-    // (See Lab Appendix for logical steps)
-    tree_from_index(index, tree_hash);
-    head_read(parent_hash);
-    char *author = pes_author();
-    sprintf(buffer,
-    "tree %s\nparent %s\nauthor %s\n\n%s\n",
-    tree_hash, parent_hash, author, message);
-    object_write("commit", buffer, strlen(buffer), commit_hash);
-    head_update(commit_hash);
-    (void)message; (void)commit_id_out;
-    return -1;
+    // Build tree from index
+    ObjectID tree_id;
+    if (tree_from_index(&tree_id) != 0) {
+        return -1;
+    }
+    
+    // Get parent
+    ObjectID parent_id;
+    int has_parent = (head_read(&parent_id) == 0);
+    
+    // Create commit struct
+    Commit commit = {0};
+    commit.tree = tree_id;
+    if (has_parent) {
+        commit.parent = parent_id;
+        commit.has_parent = 1;
+    }
+    strcpy(commit.author, pes_author());
+    commit.timestamp = (uint64_t)time(NULL);
+    strcpy(commit.message, message);
+    
+    // Serialize
+    void *data;
+    size_t len;
+    if (commit_serialize(&commit, &data, &len) != 0) {
+        return -1;
+    }
+    
+    // Write object
+    if (object_write(OBJ_COMMIT, data, len, commit_id_out) != 0) {
+        free(data);
+        return -1;
+    }
+    free(data);
+    
+    // Update HEAD
+    if (head_update(commit_id_out) != 0) {
+        return -1;
+    }
+    
+    return 0;
 }

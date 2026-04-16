@@ -85,8 +85,13 @@ void test_integrity(void) {
 int main(void) {
     // Clean slate
     int rc __attribute__((unused));
+#ifdef _WIN32
+    rc = system("rmdir /s /q .pes 2>nul");
+    rc = system("mkdir .pes\\objects .pes\\refs\\heads 2>nul");
+#else
     rc = system("rm -rf .pes");
     rc = system("mkdir -p .pes/objects .pes/refs/heads");
+#endif
 
     test_blob_storage();
     test_deduplication();
